@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beneficiary Management</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/milligram/1.4.1/milligram.min.css">
+    <style>
+        .flash-message {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .flash-success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .flash-error {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        body {
+            max-width: 800px;
+            margin: auto;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+        }
+        .form-container {
+            margin-bottom: 40px;
+        }
+        .form-container form {
+            display: flex;
+            flex-direction: column;
+        }
+        .form-container form label, .form-container form input, .form-container form select, .form-container form button {
+            margin-bottom: 10px;
+        }
+        .beneficiary-list {
+            margin-top: 20px;
+        }
+        .beneficiary-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border: 1px solid #ccc;
+            margin-bottom: 10px;
+        }
+        .hidden {
+            display: none;
+        }
+        #search-results {
+            position: absolute;
+            background-color: white;
+            border: 1px solid #ddd;
+            max-height: 200px;
+            overflow-y: auto;
+            width: 100%;
+            z-index: 1000;
+        }
+        .search-result-item {
+            padding: 10px;
+            cursor: pointer;
+        }
+        .search-result-item:hover {
+            background-color: #f0f0f0;
+        }
+        #search-results {
+            position: absolute;
+            background-color: white;
+            border: 1px solid #ddd;
+            max-height: 200px;
+            overflow-y: auto;
+            width: 100%;
+            z-index: 1000;
+        }
+        .search-result-item {
+            padding: 10px;
+            cursor: pointer;
+        }
+        .search-result-item:hover {
+            background-color: #f0f0f0;
+        }
+    </style>
+</head>
+<body>
+    <h1>SD Industries RTGS Management</h1>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="flash-message flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+    {% endwith %}  
+    <div class="form-container">
+        <h2>Generate RTGS/NEFT Form</h2>
+        <form id="generate-form" action="/generate_form" method="POST">
+            <label for="search">Search Beneficiary:</label>
+            <input type="text" id="search" autocomplete="off">
+            <div id="search-results" class="hidden"></div>
+
+            <input type="hidden" id="selected-beneficiary-id" name="beneficiary" required>
+
+            <div id="beneficiary-details" class="hidden">
+                <h3>Beneficiary Details</h3>
+                <p id="beneficiary-name"></p>
+                <p id="beneficiary-account"></p>
+                <p id="beneficiary-bank"></p>
+                <p id="beneficiary-branch"></p>
+                <p id="beneficiary-ifsc"></p>
+            </div>
+
+            <label for="amount">Amount:</label>
+            <input type="number" id="amount" name="amount" required>
+            
+            <button type="submit" class="button-primary">Generate Form</button>
+        </form>
+    </div>
+        <div class="form-container">
+            <h2>Add Beneficiary</h2>
+            <form action="/add_beneficiary" method="POST">
+                <label for="name">Name:</label>
+                <input type="text" id="name" name="name">
+                
+                <label for="account_no">Account Number:</label>
+                <input type="text" id="account_no" name="account_no">
+                
+                <label for="bank_name">Bank Name:</label>
+                <input type="text" id="bank_name" name="bank_name">
+                
+                <label for="branch">Branch:</label>
+                <input type="text" id="branch" name="branch">
+                
+                <label for="ifsc_code">IFSC Code:</label>
+                <input type="text" id="ifsc_code" name="ifsc_code">
+                
+                <button type="submit" class="button-primary">Add Beneficiary</button>
+            </form>
+    </div>
+
+    <div class="beneficiary-list">
+        <h2>Beneficiaries</h2>
+        {% for beneficiary in beneficiaries %}
+            <div class="beneficiary-item">
+                <span>{{ beneficiary[1] }}</span>
+                <form action="/delete_beneficiary" method="POST" style="margin: 0;">
+                    <input type="hidden" name="beneficiary_id" value="{{ beneficiary[0] }}">
+                    <button type="submit" class="button">Delete</button>
+                </form>
+            </div>
+        {% endfor %}
+    </div>
+    <hr>
+    <h2>Managed By Gopal Agarwal</h2>
+    <script>
+        const searchInput = document.getElementById('search');
+        const searchResults = document.getElementById('search-results');
+
+        searchInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                searchBeneficiaries();
+            }
+        });
+
+        function searchBeneficiaries() {
+            const searchTerm = searchInput.value;
+            
+            fetch('/search_beneficiaries', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'search_term=' + encodeURIComponent(searchTerm)
+            })
+            .then(response => response.json())
+            .then(results => {
+                searchResults.innerHTML = '';
+                searchResults.classList.remove('hidden');
+
+                results.forEach(beneficiary => {
+                    const div = document.createElement('div');
+                    div.className = 'search-result-item';
+                    div.textContent = `${beneficiary[1]} - ${beneficiary[3]} (${beneficiary[2]})`;
+                    div.onclick = () => selectBeneficiary(beneficiary[0]);
+                    searchResults.appendChild(div);
+                });
+
+                if (results.length === 0) {
+                    searchResults.classList.add('hidden');
+                }
+            });
+        }
+
+        function selectBeneficiary(id) {
+            fetch('/get_beneficiary_details', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'beneficiary_id=' + encodeURIComponent(id)
+            })
+            .then(response => response.json())
+            .then(beneficiary => {
+                searchInput.value = beneficiary.name;
+                document.getElementById('selected-beneficiary-id').value = beneficiary.id;
+                displayBeneficiaryDetails(beneficiary);
+                searchResults.classList.add('hidden');
+            });
+        }
+
+        function displayBeneficiaryDetails(beneficiary) {
+            const detailsDiv = document.getElementById('beneficiary-details');
+            detailsDiv.classList.remove('hidden');
+            document.getElementById('beneficiary-name').textContent = `Name: ${beneficiary.name}`;
+            document.getElementById('beneficiary-account').textContent = `Account Number: ${beneficiary.account_no}`;
+            document.getElementById('beneficiary-bank').textContent = `Bank Name: ${beneficiary.bank_name}`;
+            document.getElementById('beneficiary-branch').textContent = `Branch: ${beneficiary.branch}`;
+            document.getElementById('beneficiary-ifsc').textContent = `IFSC Code: ${beneficiary.ifsc_code}`;
+        }
+
+        document.addEventListener('click', function(event) {
+            if (event.target !== searchInput && !searchResults.contains(event.target)) {
+                searchResults.classList.add('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
